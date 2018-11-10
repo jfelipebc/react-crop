@@ -1,7 +1,7 @@
 import React from 'react';
 import { shallow } from 'enzyme';
 import { assert, spy, stub } from 'sinon';
-
+import * as utils from '../../utils';
 import ImageCrop from './ImageCrop';
 
 const DEFAULT_REACT_CROP = {
@@ -17,6 +17,9 @@ const DEFAULT_REACT_CROP = {
 };
 
 describe('ImageCrop component', () => {
+  const urlReturned = 'file://test.pdf';
+  const file = { name: 'test.pdf', size: 12, type: 'application/png' };
+
   const createObjectURLStub = stub(window.URL, 'createObjectURL');
   const onImageCropCompleteSpy = spy();
   const getContextStub = stub(window.HTMLCanvasElement.prototype, 'getContext');
@@ -29,6 +32,10 @@ describe('ImageCrop component', () => {
     const wrapper = shallow(<ImageCrop {...props} />);
     return { wrapper, props };
   };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
   it('render without crashing', () => {
     const { wrapper, props } = makeWrapper({
@@ -120,45 +127,32 @@ describe('ImageCrop component', () => {
     expect(wrapper.state().fileName).to.be.eql(file.name);
   });
 
-  // fit('the getCroppedImg should be return a promise', () => {
-  //   const file = { name: 'test.pdf', size: 12, type: 'application/png' };
-  //   const toBlobStub = stub(window.HTMLCanvasElement.prototype, 'toBlob');
-
-  //   const toBlobPromise = promise => toBlobStub.callsFake(() => promise);
-  //   toBlobPromise(Promise.resolve(file));
-  //   getContextStub.returns({ drawImage: jest.fn() });
-
-  //   const { wrapper } = makeWrapper();
-  //   const resultFile = wrapper
-  //     .instance()
-  //     .getCroppedImg(React.createRef(), {}, 'test.pdf');
-
-  //   console.log(resultFile);
-  //   expect(resultFile).to.eql(file);
-  // });
-
-  it('When call onSaveImageCrop event, should be call onImageCropComplete', async () => {
-    const urlReturned = 'file://test.pdf';
-    const file = { name: 'test.pdf', size: 12, type: 'application/png' };
-    // const getCroppedImgStub = stub(ImageCrop.prototype, 'getCroppedImg');
-    // const getCroppedImgPromise = promise =>
-    //   getCroppedImgStub.callsFake(() => promise);
-    // createObjectURLStub.returns(urlReturned);
-
+  it('should return file when getCroppedImg called', async () => {
+    const imageRef = React.createRef();
+    const pixelCrop = {};
     const toBlobStub = stub(window.HTMLCanvasElement.prototype, 'toBlob');
-
-    const toBlobPromise = promise => toBlobStub.callsFake(() => promise);
-    toBlobPromise(Promise.resolve(file));
-
     getContextStub.returns({ drawImage: jest.fn() });
-    //getCroppedImgPromise(Promise.resolve(file));
-
-    const image = React.createRef();
-    const pixelCrop = { x: 40, y: 40, width: 300, height: 300 };
+    utils.getBlobFromCanvas = jest.fn(() =>
+      toBlobStub.returns(Promise.resolve(file))
+    );
     const { wrapper } = makeWrapper();
+    const result = await wrapper
+      .instance()
+      .getCroppedImg(imageRef, pixelCrop, file.name);
 
+    expect(result).to.eql(file);
+  });
+
+  it('should be call onImageCropComplete and set values in state', async () => {
+    const imageRef = React.createRef();
+    const pixelCrop = {};
+
+    const getCroppedImgStub = stub(ImageCrop.prototype, 'getCroppedImg');
+    getCroppedImgStub.returns(Promise.resolve(file));
+    createObjectURLStub.returns(urlReturned);
+    const { wrapper } = makeWrapper();
     wrapper.setState({ pixelCrop, fileName: file.name });
-    wrapper.instance().onImageLoaded(image);
+    wrapper.instance().imageRef = imageRef;
 
     await wrapper.instance().onSaveImageCrop();
 
@@ -201,7 +195,6 @@ describe('ImageCrop component', () => {
 
       wrapper.setState({ fileName: 'test.pdf' });
       const profileAvatar = wrapper.find('ProfileAvatar');
-      console.log(profileAvatar.debug());
       expect(profileAvatar.props()).to.have.property('src', props.imageUrl);
       expect(profileAvatar.props()).to.have.property('alt', 'test.pdf');
       expect(profileAvatar.props()).to.have.property(

@@ -5,6 +5,8 @@ import ReactCrop from 'react-image-crop';
 import Modal from 'emerald-ui/lib/Modal';
 import Button from 'emerald-ui/lib/Button';
 
+import { getBlobFromCanvas } from '../../utils';
+
 import ProfileAvatar from './components/ProfileAvatar';
 import ProfileDropzone from './components/ProfileDropzone';
 
@@ -20,27 +22,6 @@ const DEFAULT_REACT_CROP = {
   }
 };
 
-const getFileExtensionType = file => {
-  const regExpToGetFileExtension = /\.([0-9a-z]+)(?=[?#])|(\.)(?:[\w]+)$/;
-  const extractFileExtension = file.match(regExpToGetFileExtension);
-  return extractFileExtension[0].replace('.', '');
-};
-
-const getBlob = async (canvas, type, name) => {
-  const getBlob = canvas => {
-    return new Promise(function(resolve) {
-      canvas.toBlob(function(blob) {
-        return resolve(blob);
-      }, type);
-    });
-  };
-
-  const file = await getBlob(canvas);
-  file.name = name;
-  canvas = null;
-  return file;
-};
-
 class ImageCrop extends PureComponent {
   state = {
     fileName: '',
@@ -48,6 +29,19 @@ class ImageCrop extends PureComponent {
     imageUrl: '',
     ...DEFAULT_REACT_CROP
   };
+
+  constructor(props) {
+    super(props);
+
+    this.getCroppedImg = this.getCroppedImg.bind(this);
+    this.onClose = this.onClose.bind(this);
+    this.onImageLoaded = this.onImageLoaded.bind(this);
+    this.onCropComplete = this.onCropComplete.bind(this);
+    this.onChange = this.onChange.bind(this);
+    this.onRequestChangeImage = this.onRequestChangeImage.bind(this);
+    this.onDrop = this.onDrop.bind(this);
+    this.onSaveImageCrop = this.onSaveImageCrop.bind(this);
+  }
 
   static getDerivedStateFromProps(props, state) {
     const { imageUrl } = props;
@@ -60,7 +54,7 @@ class ImageCrop extends PureComponent {
     return state;
   }
 
-  getCroppedImg = async (image, pixelCrop, fileName) => {
+  async getCroppedImg(image, pixelCrop, fileName) {
     const canvas = global.document.createElement('canvas');
     canvas.width = pixelCrop.width;
     canvas.height = pixelCrop.height;
@@ -78,39 +72,39 @@ class ImageCrop extends PureComponent {
       pixelCrop.height
     );
 
-    const fileExtension = getFileExtensionType(fileName);
-    const file = await getBlob(canvas, `image/${fileExtension}`, fileName);
+    const file = await getBlobFromCanvas(canvas)();
+    file.name = fileName;
     return file;
-  };
+  }
 
-  onClose = () => {
+  onClose() {
     this.setState({ src: '', isShowModal: false });
-  };
+  }
 
-  onImageLoaded = image => {
+  onImageLoaded(image) {
     this.imageRef = image;
-  };
+  }
 
-  onCropComplete = (crop, pixelCrop) => {
+  onCropComplete(crop, pixelCrop) {
     this.setState({ pixelCrop });
-  };
+  }
 
-  onChange = crop => {
+  onChange(crop) {
     this.setState({ crop });
-  };
+  }
 
-  onRequestChangeImage = () => {
+  onRequestChangeImage() {
     this.setState({ ...DEFAULT_REACT_CROP });
-  };
+  }
 
-  onDrop = files => {
+  onDrop(files) {
     const file = files[0];
     const src = window.URL.createObjectURL(file);
     const isShowModal = src !== '';
     this.setState({ src, fileName: file.name, isShowModal });
-  };
+  }
 
-  onSaveImageCrop = async () => {
+  async onSaveImageCrop() {
     const { fileName, pixelCrop } = this.state;
     const { onImageCropComplete } = this.props;
     const imageFile = await this.getCroppedImg(
@@ -123,7 +117,7 @@ class ImageCrop extends PureComponent {
 
     onImageCropComplete(fileName, imageUrl, imageFile);
     this.setState({ imageUrl, fileName, src: '', isShowModal: false });
-  };
+  }
 
   render() {
     const { src, crop, isShowModal, imageUrl, fileName } = this.state;
